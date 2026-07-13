@@ -47,7 +47,7 @@ Similarly, QUIC handshakes are parsed to isolate the inner TLS packets and extra
 The purely port-based rules are generic and likely to produce a high volume of false positives. They are mostly there as a possible network artifact but require testing in a live environment. Perhaps they are better suited from a forensic POV or combined with other indicators. A highly specific example was observed in our testing as SYN packets sent by AnyDesk to port 7070, which is tracked under `sid:1000041`.
 
 ## Magic Bytes
-Virtual Network Computing (VNC) does not utilize TLS. Instead, it relies on the Remote Frame Buffer (RFB) protocol. During session negotiation, the client sends its supported RFB version to the server in plaintext (e.g., `RFB 003.008). This string is highly distinct and reliably fingerprinted by Suricata.
+Virtual Network Computing (VNC) does not utilize TLS. Instead, it relies on the Remote Frame Buffer (RFB) protocol. During session negotiation, the client sends its supported RFB version to the server in plaintext (e.g., `RFB 003.008`). This string is highly distinct and reliably fingerprinted by Suricata.
 
 ## Other Correlations
 The `t12d2108h1_76e208dd3e22_2dae41c691ec` JA4 hash actually matches both TeamViewer and AnyViewer. To tell them apart, rule `1000036` looks for a connection to `ip138[.]com` via the TLS SNI, when AnyViewer connects to this geolocation lookup service (likely to comply with Chinese laws).
