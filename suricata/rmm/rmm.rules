@@ -1,0 +1,89 @@
+# Suricata RMM Rules
+
+# Resources
+##	Protocol: https://docs.suricata.io/en/latest/rules/intro.html#protocol
+##	JA4: https://docs.suricata.io/en/latest/rules/ja-keywords.html#ja4-hash
+##	RFB RFC: https://datatracker.ietf.org/doc/html/rfc6143
+##	Flow keyword: https://docs.suricata.io/en/latest/rules/flow-keywords.html#flow
+##	startsWith: https://docs.suricata.io/en/latest/rules/payload-keywords.html#startswith
+
+
+# RustDesk v1.4.5
+alert dns any any -> any any (msg:"RustDesk DNS Response"; dns.answers.rrname; content:"rustdesk"; nocase; sid:1000001; rev:1;)
+alert tls any any -> any any (msg:"'RustDesk' in TLS SNI"; tls.sni; content:"rustdesk"; nocase;  sid:1000002; rev:1;)
+alert tls any any -> any any (msg:"RustDesk JA4 Fingerprint Match"; ja4.hash; content:"t13d1011h1_61a7ad8aa9b6_3fcd1a44f3e3"; sid:1000023; rev:1;)
+alert tcp any any -> any 21115 (msg:"Possible RustDesk connection (port-based)"; sid:1000016; rev:1;)
+alert tcp any any -> any 21116 (msg:"Possible RustDesk connection (port-based)"; sid:1000017; rev:1;)
+alert udp any any -> any 21116 (msg:"Possible RustDesk connection (port-based)"; sid:1000022; rev:1;)
+alert tcp any any -> any 21117 (msg:"Possible RustDesk connection (port-based)"; sid:1000018; rev:1;)
+alert tcp any any -> any 21118 (msg:"Possible RustDesk connection (port-based)"; sid:1000019; rev:1;)
+alert tcp any any -> any 21119 (msg:"Possible RustDesk connection (port-based)"; sid:1000020; rev:1;)
+
+
+# Ammyy v3.10
+alert dns any any -> any any (msg:"Ammyy DNS Response"; dns.answers.rrname; content:"ammyy"; nocase; sid:1000003; rev:1;)
+alert tls any any -> any any (msg:"'Ammyy' in TLS SNI"; tls.sni; content:"ammyy"; nocase; sid:1000004; rev:1;)
+alert tls any any -> any any (msg:"Ammyy JA4 Fingerprint Match"; ja4.hash; content:"t12d190800_d83cc789557e_7af1ed941c26"; sid:1000029; rev:1;)
+alert http any any -> any any (msg:"Ammyy HTTP request"; flow:established,to_server; http.host; content:"ammyy"; sid:1000021; rev:1;)
+alert tls any any -> any any (msg:"Ammyy Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"ammyy"; nocase; sid:1000038; rev:1;)
+
+
+# TeamViewer v15.73.5
+alert dns any any  -> any any (msg:"TeamViewer DNS Response"; dns.answers.rrname; content:"teamviewer"; nocase; sid:1000005; rev:1;)
+alert tls any any  -> any any (msg:"'TeamViewer' in TLS SNI"; tls.sni; content:"teamviewer"; nocase; sid:1000006; rev:1;)
+alert tls any any  -> any any (msg:"TeamViewer/AnyViewer JA4 Fingerprint Match"; ja4.hash; content:"t12d2108h1_76e208dd3e22_2dae41c691ec"; sid:1000026; rev:1;)
+alert quic any any -> any any (msg:"TeamViewer JA4 Fingerprint Match"; ja4.hash; content:"q13d0311h3_55b375c5d22e_653d80c3fe9d"; sid:1000160; rev:1;)
+alert tls any any  -> any any (msg:"TeamViewer JA4 Fingerprint Match"; ja4.hash; content:"t13d1516h2_8daaf6152771_d8a2da3f94cd"; sid:1000161; rev:1;)
+alert mdns any any -> any any (msg:"TeamViewer mDNS Query"; mdns.queries.rrname; content:"TeamViewer"; nocase; sid:1000028; rev:1;)
+alert tcp any any  -> any 5938 (msg:"Possible TeamViewer connection (port-based)"; sid:1000030; rev:1;)
+alert tls any any  -> any any (msg:"TeamViewer Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"TeamViewer"; nocase; sid:1000039; rev:1;)
+
+
+# RemotePC v7.6.95
+alert dns any any -> any any (msg:"RemotePC DNS Response"; dns.answers.rrname; content:"remotepc"; nocase; sid:1000007; rev:1;)
+alert tls any any -> any any (msg:"'RemotePC' in TLS SNI"; tls.sni; content:"remotepc"; nocase; sid:1000008; rev:1;)
+alert tls any any -> any any (msg:"RemotePC JA4 Fingerprint Match"; ja4.hash; content:"t12d210700_76e208dd3e22_2dae41c691ec"; sid:1000024; rev:1;)
+alert tls any any -> any any (msg:"RemotePC JA4 Fingerprint Match"; ja4.hash; content:"t12i860500_e18388e7f3a3_a1e935682795"; sid:1000126; rev:1;)
+alert tls any any -> any any (msg:"RemotePC Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"RemotePC"; nocase; sid:1000040; rev:1;)
+
+
+# UltraVNC v1.6.4.0
+# Checks for initial VNC handshake version exchange, e.g. RFB 003.008
+alert tcp any any -> any 5900 (msg:"VNC Connection"; flow:established; content:"RFB "; startswith; sid:1000009; rev:1;)
+
+
+# AnyDesk v9.6.7
+alert dns any any -> any any (msg: "AnyDesk DNS Response"; dns.answers.rrname; content:"anydesk"; nocase; sid:1000034; rev:1;)
+alert tls any any -> any any (msg:"'AnyDesk' in TLS ALPN"; tls.alpn; content:"anydesk"; nocase; sid:1000010; rev:1;)
+alert tls any any -> any any (msg:"AnyDesk JA4 Fingerprint Match"; ja4.hash; content:"t13i3110as_e8f1e7e78f70_1f22a2ca17c4"; sid:1000025; rev:1;)
+alert tls any any -> any any (msg:"AnyDesk JA4 Fingerprint Match"; ja4.hash; content:"t13i310900_e8f1e7e78f70_1f22a2ca17c4"; sid:1000048; rev:1;)
+alert http any any -> any any (msg:"AnyDesk HTTP Connection"; flow:established,to_server; http.method; content:"POST"; nocase; http.user_agent; content:"anydesk"; sid:1000011; rev:1;)
+alert tcp any any -> any 7070 (msg:"Possible AnyDesk SYN Connection (port-based)"; flow:to_server; tcp.flags:S; sid:1000041; rev:1;)
+# https://support.anydesk.com/docs/firewall
+alert tcp any any -> any 6568 (msg:"Possible AnyDesk Connection (port-based)"; sid:1000042; rev:1;)
+alert udp any any -> 239.255.102.18 50001 (msg:"AnyDesk Network Discovery Traffic"; sid:1000043; rev:1;)
+alert udp any any -> 239.255.102.18 50002 (msg:"AnyDesk Network Discovery Traffic"; sid:1000044; rev:1;)
+alert udp any any -> 239.255.102.18 50003 (msg:"AnyDesk Network Discovery Traffic"; sid:1000045; rev:1;)
+
+
+# AnyViewer v5.5.0
+alert dns any any -> any any (msg:"Possible AnyViewer DNS Query (Geolocation Lookup)"; dns.answers.rrname; content:"ip138"; nocase; sid:1000101; rev:1;)
+alert dns any any -> any any (msg:"AnyViewer DNS Sequence (Geolocation + AnyViewer Server)"; dns.answers.rrname; content:"aomeisoftware"; sid:1000116; rev:1;)
+alert tls any any -> any any (msg:"AnyViewer Domain in TLS SNI"; tls.sni; content:"aomeisoftware"; nocase; sid:1000012; rev:1;)
+alert tcp any any -> any 30192 (msg:"Possible AnyViewer Connection (port-based)"; sid:1000031; rev:1;)
+alert tcp any any -> any 30193 (msg:"Possible AnyViewer Connection (port-based)"; sid:1000032; rev:1;)
+alert udp any any -> any 30196 (msg:"Possible AnyViewer Connection (port-based)"; sid:1000033; rev:1;)
+# Check for connection to ip138 prior to JA4 hash to separate AnyViewer from TeamViewer
+alert tls any any -> any any (msg:"Connection to IP-Lookup Domain Associated with AnyViewer"; tls.sni; content:"ip138"; nocase; xbits:set, ip138conn, track ip_src, expire 60; sid:1000036; rev:1;)
+alert tls any any -> any any (msg:"AnyViewer JA4 Fingerprint Match"; ja4.hash; content:"t12d2108h1_76e208dd3e22_2dae41c691ec"; xbits:isset, ip138conn, track ip_src; sid:1000035; rev:1;)
+alert tls any any -> any any (msg:"AnyViewer (aomeisoftware) Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"aomeisoftware"; nocase; sid:1000046; rev:1;)
+
+
+# Atera Splashtop v3.8.0.4
+alert dns any any -> any any (msg:"Atera Splashtop DNS Response"; dns.answers.rrname; content:"splashtop"; nocase; sid:1000013; rev:1;)
+alert tls any any -> any any (msg:"'Splashtop' in TLS SNI"; tls.sni; content:"splashtop"; nocase; sid:1000014; rev:1;)
+alert tls any any -> any any (msg:"Atera Splashtop JA4 Fingerprint Match"; ja4.hash; content:"t12d1909h2_d83cc789557e_7af1ed941c26"; sid:1000027; rev:1;)
+alert tls any any -> any any (msg:"Atera Splashtop JA4 Fingerprint Match"; ja4.hash; content:"t12d270800_a2460661a67a_51e440377a6a"; sid:1000015; rev:2;)
+alert udp any any -> any 3479 (msg:"Possible Splashtop Connection (port-based)"; sid:1000162; rev:1;)
+alert tcp any any -> any 6783 (msg:"Possible Splashtop Connection (port-based)"; sid:1000037; rev:1;)
+alert tls any any -> any any (msg:"Splashtop Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"splashtop"; nocase; sid:1000047; rev:1;)
