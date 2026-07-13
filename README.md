@@ -1,11 +1,11 @@
-# pnff -- Passive Network Fingerprinting Framework
+# pnff - Passive Network Fingerprinting Framework
 This repository contains the code, scripts, and rules associated with the master's thesis ***Detecting Post-Compromise Activity in OT Networks: A Multilayered Network Fingerprinting Approach***. The research was conducted as a collaboration between Truesec and KTH Royal Institute of Technology by William Hedenskog, supervised by Nicklas Keijser (Truesec), Marco Casagrande (KTH), and examined by Panos Papadimitratos (KTH).
 
 PNFF is designed for Operational Technology (OT) environments, relying strictly on passive network fingerprinting to avoid disrupting sensitive industrial assets. The framework targets three specific traffic profiles — **Plaintext Network Protocols**, **Virtual Private Network (VPN) Tunnels** and **OPC Unified Architecture (OPC UA)** — to identify:
 
 1. **Desktop Applications**
 2. **VPN Protocols**
-3. **OPC UA library/vendor implementations**
+3. **OPC UA Library/Vendor Implementations**
 
 ## Requirements
 
@@ -49,7 +49,7 @@ Using these fingerprints, we identify 10 OPC UA implementations from 7 vendors/l
 Additionally, we use JA4X fingerprinting to detect spoofed certificates, which we test with our rogue server. Another promising use case in OT is identifying default vendor certificates that may compromise security. 
 
 ## Scripts
-Our automated traffic analysis scripts are located in the `/scripts` directory. Their targets and required arguments are displayed in the table. Python scripts are located inside `/scripts/python`. The scripts are used for entropy calculation of handshake messages, UA-FP fingerprint-to-Suricata conversion, and for our OPC UA rogue server attack.
+Our automated traffic analysis scripts are located in the `/scripts` directory. Their targets and required arguments are displayed in the table. Python scripts are located inside `/scripts/python`, and are used for entropy calculation of handshake messages, UA-FP fingerprint-to-Suricata conversion, and for our OPC UA rogue server testing.
 
 | Script | Target | Usage |
 | :--- | :--- | :--- |
