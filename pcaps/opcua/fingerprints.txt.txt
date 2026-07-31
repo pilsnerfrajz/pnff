@@ -1,0 +1,52 @@
+Prosys
+    OPC-FP
+        uah0_147456_147456_4194240_65535
+
+        uaa0_65536_65536_4194240_0
+
+    Client JA4X
+        711618dec96d_711618dec96d_ae9901946d5e
+
+    Server JA4X
+        ae7a14fac82f_ae7a14fac82f_ae9901946d5e
+
+IO
+    OPC-FP
+        uah0_65535_65535_4194240_0
+        uah0_65535_65535_4194304_0
+
+    Client JA4X
+        f1438bf8784a_f1438bf8784a_fac9b595f721
+
+Kepware
+    OPC-FP
+        uaa0_65535_65535_16777216_5000
+        uaa0_65536_65536_16777216_5000
+
+    Server JA4X
+        20a235741bae_20a235741bae_92a2d440f241
+
+opcua-asyncio
+    OPC-FP
+        uah0_2147483647_2147483647_0_0
+
+    Client JA4X
+        ae7a14fac82f_ae7a14fac82f_1430e4a87223
+
+Softing
+    OPC-FP
+        uah0_65535_65535_4194304_512
+        uaa0_65535_65535_4194304_0
+
+    Client JA4X
+        7022c563de38_7022c563de38_81f0fa53bbe1
+
+    Server JA4X
+        f1438bf8784a_f1438bf8784a_fac9b595f721
+
+Matrikon
+    OPC-FP
+        uah0_1048576_1048576_83886080_100
+
+    Client JA4X
+        f1438bf8784a_f1438bf8784a_fac9b595f721
