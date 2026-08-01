@@ -1,0 +1,196 @@
+# Suricata VPN Rules
+
+
+# COMMERCIAL PROTOCOL RULES
+
+# WireGuard. Could be complemented with entropy checks
+alert udp any any -> any any (msg:"WireGuard VPN Handshake Initiation"; dsize:148; content:"|01 00 00 00|"; offset:0; depth:4; content:"|00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00|"; offset:132; depth:16; flowbits:set, wg_udp_handshake; flowbits:noalert; sid:1000048; rev:1;)
+alert udp any any -> any any (msg:"WireGuard VPN Handshake Response"; dsize:92; content:"|02 00 00 00|"; offset:0; depth:4; content:"|00 00 00 00 00 00 00 00 00 00 00 00|"; offset:72; depth:16; flowbits:isset, wg_udp_handshake; flowbits:unset, wg_udp_handshake; sid:1000056; rev:1;)
+
+# WireGuard over TCP. Tested with Proton and Mullvad. Adds 2 bytes before WG header. Potentially could change the dsize to 150 and 94, but this is probably down proprietary implementations. Safer to look for larger size and the specific WG bytes.
+alert tcp any any -> any any (msg:"WireGuard (TCP) VPN Handshake Initiation"; dsize:>148; content:"|01 00 00 00|"; content:"|00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00|"; endswith; flowbits:set, wg_tcp_handshake; flowbits:noalert; sid:1000109; rev:1;)
+alert tcp any any -> any any (msg:"WireGuard (TCP) VPN Handshake Response"; dsize:>92; content:"|02 00 00 00|"; content:"|00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00|"; endswith; flowbits:isset, wg_tcp_handshake; flowbits:unset, wg_tcp_handshake; sid:1000110; rev:1;)
+
+
+# Lightweight WireGuard Obfuscation (LWO). 32-byte key XORed WireGuard headers. The above rules does not work for LWO. The MSB of the second byte is set to 1 to indicate obfuscation
+alert udp any any -> any any (msg:"Possible Obfuscated WireGuard Handshake"; dsize:148; byte_test:4, !=, 0x01000000, 0; byte_test: 1, =, 1, 1, bitmask 0x80; entropy:bytes 0, offset 0, value 6.24-6.87; flowbits:set, possible_lwo_wg_handshake; flowbits:noalert; sid:1000107; rev:1;)
+alert udp any any -> any any (msg:"Possible Obfuscated WireGuard Handshake"; dsize:92; byte_test:4, !=, 0x02000000, 0; byte_test: 1, =, 1, 1, bitmask 0x80; entropy:bytes 0, offset 0, value 5.98-6.40; flowbits:isset, possible_lwo_wg_handshake; flowbits:unset, possible_lwo_wg_handshake; sid:1000108; rev:1;)
+
+
+# Shadowsocks (Pre-2022) obfuscation for UDP
+# SOCKS5 adds a 7 byte header before the WireGuard payload if IPv4 (not a domain name) is used (https://shadowsocks.org/doc/aead.html). The cipher suite used adds additonal overhead shown here https://shadowsocks.org/doc/aead.html
+# Payload = [cipher salt][7 byte header + WireGuard payload][cipher tag]. Since WireGuard handshakes have a fixed size of 148 and 92 bytes, we can look for specific sizes that match the overhead of Shadowsocks
+# AEAD_CHACHA20_POLY1305/chacha20-ietf-poly1305 overhead: 32 byte salt + 16 byte tag
+# AEAD_AES_256_GCM/aes-256-gcm overhead: 32 byte salt + 16 byte tag
+# AEAD_AES_128_GCM/aes-128-gcm overhead: 16 byte salt + 16 byte tag
+
+# Below rule matches chacha20-ietf-poly1305, aes-256-gcm (55B overhead)
+alert udp any any -> any any (msg:"Potential WireGuard over Shadowsocks (Pre-2022 standard)"; flow:not_established,to_server; app-layer-protocol:!quic; dsize:203; entropy: value 6.79-7.20; flowbits:set, ss_chacha_aes256; flowbits:noalert; sid:1000151; rev:1;)
+alert udp any any -> any any (msg:"Potential WireGuard over Shadowsocks (Pre-2022 standard)"; flow:to_client; app-layer-protocol:!quic; dsize:147; entropy: value 6.55-6.88; flowbits:isset, ss_chacha_aes256; flowbits:unset, ss_chacha_aes256; sid:1000152; rev:1;)
+
+# Below rule matches aes-128-gcm (39B overhead) *****UNTESTED*****. Entropy is assumed.
+alert udp any any -> any any (msg:"Potential WireGuard over Shadowsocks (Pre-2022 standard)"; flow:not_established,to_server; app-layer-protocol:!quic; dsize:187; entropy: value >6.5; flowbits:set, ss_aes128; flowbits:noalert; sid:1000153; rev:1;)
+alert udp any any -> any any (msg:"Potential WireGuard over Shadowsocks (Pre-2022 standard)"; flow:to_client; app-layer-protocol:!quic; dsize:131; entropy: value >6.4; flowbits:isset, ss_aes128; flowbits:unset, ss_aes128; sid:1000154; rev:1;)
+
+
+# These are likely useless and are *****UNTESTED*****. A rule like this could be useful for detecting tunnels though... Assumed Entropy again!
+# Shadowsocks 2022 obfuscation for UDP. Added flowbits to only alert on the first and second packets in the flow. Risk of not catching later handshakes, but the flow should be reset upon a new connection
+# Client to server: 16 byte separate header, 1 byte type, 8 byte unix timestamp, padding length 2 bytes, padding >=0 bytes, ATYP 1 byte, address 4 bytes (IPv4), port 2 bytes, 16 byte cipher tag = 16+1+8+2+1+4+2+16 = 50 bytes minimum + 148 bytes WG
+alert udp any any -> any any (msg:"Encrypted Tunnel (e.g., WireGuard over Shadowsocks 2022)"; flow:not_established,to_server; app-layer-protocol:!quic; dsize:>197; entropy: value >6.5; flowbits: isnotset, first_client_to_server; flowbits:set, potential_ss_2022; flowbits:noalert; flowbits:set, first_client_to_server; sid: 1000155; rev:1;)
+# Server to client: 16 byte separate header, 1 byte type, 8 byte unix timestamp, client session id 8 bytes, padding length 2 bytes, padding >=0 bytes, ATYP 1 byte, address 4 bytes (IPv4), port 2 bytes, 16 byte cipher tag = 16+1+8+8+2+1+4+2+16 = 58 bytes minimum + 92 bytes WG
+alert udp any any -> any any (msg:"Encrypted Tunnel (e.g., WireGuard over Shadowsocks 2022)"; flow:to_client; app-layer-protocol:!quic; dsize:>149; entropy: value >6.5; flowbits: isnotset, first_server_to_client; flowbits:isset, potential_ss_2022; flowbits:unset, potential_ss_2022; flowbits: set, first_server_to_client; sid: 1000156; rev:1;)
+
+
+# IPSec https://www.rfc-editor.org/rfc/rfc7296.html
+# Look for IKE handshake and actual establishment of the tunnel
+# ISAKMP Header https://www.rfc-editor.org/rfc/rfc2408#section-3.1 and values
+alert udp any any -> any 500 (msg:"IKEv2/ISAKMP Security Association Handshake (IPSec Indicator)"; flow: to_server; content:"|00 00 00 00 00 00 00 00|"; offset:8; depth:8; content:"|21 20 22|"; offset:16; depth: 3; sid:1000049; rev:1;)
+# IKE_AUTH without NAT
+alert udp any any -> any 500 (msg:"IKEv2/ISAKMP Authentication (IPSec Indicator)"; flow: to_server; content:"|2e 20 23|"; offset:16; depth: 3; sid:1000111; rev:1;)
+# IKE_AUTH with NAT traversal. Changes port and adds 4 bytes (zeroes) between UDP and IKE header.
+alert udp any any -> any 4500 (msg:"IKEv2/ISAKMP Authentication (IPSec Indicator)"; flow: to_server; content:"|00 00 00 00|"; startswith; content:"|2e 20 23|"; offset:20; depth: 3; sid:1000050; rev:1;)
+# Similar rules for IKEv1
+alert udp any any -> any 500 (msg:"IKEv1/ISAKMP (Main mode) Security Association Handshake (IPSec Indicator)"; flow: to_server; content:"|00 00 00 00 00 00 00 00|"; offset:8; depth:8; content:"|01 10 02|"; offset:16; depth: 3; sid:1000112; rev:1;)
+alert udp any any -> any 500 (msg:"IKEv1/ISAKMP (Aggressive mode) Security Association Handshake (IPSec Indicator)"; flow: to_server; content:"|00 00 00 00 00 00 00 00|"; offset:8; depth:8; content:"|01 10 04|"; offset:16; depth: 3; sid:1000113; rev:1;)
+alert udp any any -> any 500 (msg:"IKEv1/ISAKMP Authentication (IPSec Indicator)"; flow: to_server; content:"|08 10 20|"; offset:16; depth: 3; sid:1000114; rev:1;)
+alert udp any any -> any 4500 (msg:"IKEv1/ISAKMP Authentication (IPSec Indicator)"; flow: to_server; content:"|00 00 00 00|"; startswith; content:"|08 10 20|"; offset:20; depth: 3; sid:1000115; rev:1;)
+
+
+# OpenVPN TCP
+# extract the opcode byte at offset 2 in the payload. Bitmask it with 1111 1000 and check if it is 0x07 (P_CONTROL_HARD_RESET_CLIENT_V2)
+# mark the flow and look for a server reply (0x08) with the same flowbit set. Unset the flowbit after alert generation to free up memory and prevent continous alerting on the same flow.
+# minimum header size is 14 bytes for vanilla OpenVPN, but tls-crypt/tls-auth adds additonal fields
+# Based on https://openvpn.github.io/openvpn-rfc/openvpn-wire-protocol.html Sections 6.1 and 6.2, the maximum payload size for P_CONTROL_HARD_RESET_CLIENT_V2 is :
+# 16+5+3+64+512+64+8+(32*8)+64+32 = 1024 bits. Converted to bytes = 1024/8=128 bytes. At the start of the connection, there is nothing to ACK so the packet will be smaller, but we keep some overhead
+# Field name	    Length (bits) 	TLS auth 	Comment
+# pkt_len           16 		                    Packet length (TCP only)
+# OPCODE 	        5
+# key_id 	        3 	            X
+# own_session_id 	64 	            X
+# HMAC 	            128-512 	    X 	        Algorithm defines length
+# replay_packet_id 	64 	            X 	        ID used for replay protection.
+# acked_pktid_len 	8 	            X
+# acked_pktid_list 	32 * n 	        X 	        List length defined by acked_pktid_len.
+# peer_session_id 	64 	            X 	        Session ID of the remote peer. Present if acked_pktid_len >= 1
+# packet_id 	    32 	            X 	        ID of the control channel packet. ACK packets lack a packet_id
+# payload 	        (var) 	        X 	        Can be empty (not present in P_CONTROL_HARD_RESET_CLIENT_V2)
+alert tcp any any -> any any (msg:"OpenVPN-over-TCP Handshake Initiation"; flow:established,to_server; dsize:14<>128; byte_test:1, =, 0x07, 2, bitmask 0xf8; flowbits:set, ovpn_tcp_handshake; flowbits:noalert; sid:1000051; rev:1;)
+alert tcp any any -> any any (msg:"OpenVPN-over-TCP Handshake Response"; flow:established,to_client; dsize:14<>128; byte_test:1, =, 0x08, 2, bitmask 0xf8; flowbits:isset, ovpn_tcp_handshake; flowbits:unset, ovpn_tcp_handshake; sid:1000052; rev:1;)
+
+# OpenVPN UDP
+# 2 bytes smaller than TCP. "When TCP is used, each packet with started by a 16 bit length indicator in network byte order, followed by the packet."
+alert udp any any -> any any (msg:"OpenVPN-over-UDP Handshake Initiation"; flow:to_server; dsize:14<>126; byte_test:1, =, 0x07, 0, bitmask 0xf8; flowbits:set, ovpn_udp_handshake; flowbits:noalert; sid:1000053; rev:1;)
+alert udp any any -> any any (msg:"OpenVPN-over-UDP Handshake Response"; flow:to_client; dsize:14<>126; byte_test:1, =, 0x08, 0, bitmask 0xf8; flowbits:isset, ovpn_udp_handshake; flowbits:unset, ovpn_udp_handshake; sid:1000054; rev:1;)
+
+
+# SOCKS PROXY RULES
+
+# SOCKS5 Proxy (rsocx v0.1.3)
+alert tcp any any -> any any (msg:"Reverse SOCKS5 Proxy Handshake Initiation"; flow:established,to_client; dsize:2<>258; content:"|05|"; offset:0; depth:1; byte_test:1, >, 0, 1; byte_math:bytes 1, offset 1, oper +, rvalue 2, result total_len; isdataat:!total_len; flowbits:set, rev_socks5_handshake_init; sid:1000102; rev:2;)
+alert tcp any any -> any any (msg:"Reverse SOCKS5 Proxy Handshake Response"; flow:established,to_server; dsize:2; content:"|05|"; offset:0; depth:1; flowbits:isset, rev_socks5_handshake_init; flowbits:unset, rev_socks5_handshake_init; sid:1000103; rev:2;)
+alert tcp any any -> any any (msg:"Forward SOCKS5 Proxy Handshake Initiation"; flow:established,to_server; dsize:2<>258; content:"|05|"; offset:0; depth:1; byte_test:1, >, 0, 1; byte_math:bytes 1, offset 1, oper +, rvalue 2, result total_len; isdataat:!total_len; flowbits:set, fwd_socks5_handshake_init; sid:1000157; rev:1;)
+alert tcp any any -> any any (msg:"Forward SOCKS5 Proxy Handshake Response"; flow:established,to_client; dsize:2; content:"|05|"; offset:0; depth:1; flowbits:isset, fwd_socks5_handshake_init; flowbits:unset, fwd_socks5_handshake_init; sid:1000158; rev:1;)
+
+# SOCKS4 Proxy - tested tools seem to strip SOCKS header. Difficult to detect unless there is a direct connection from the external machine to the internal. ***NOT TESTED, BASED ON WIKIPEDIA FOR SOCKS***
+alert tcp any any -> any any (msg:"SOCKS4 Proxy Handshake Initiation"; flow:established,to_client; dsize:>8; content:"|04|"; offset:0; depth: 1; byte_test:1, >, 0, 1; flowbits:set, socks4_handshake_init; flowbits:noalert; sid:1000104; rev:1;)
+alert tcp any any -> any any (msg:"SOCKS4 Proxy Handshake"; flow:established,to_server; dsize:8; content:"|04|"; offset:0; depth: 1; flowbits:isset, socks4_handshake_init; flowbits:unset, socks4_handshake_init; sid:1000105; rev:1;)
+
+# Bonus rule for RPIVOT. The tool with the most stars on GitHub (when searching for SOCKS4 reverse proxy) used to test SOCKS4 detection. This tool was not SOCKS protocol compliant but has a hardcoded string
+alert tcp any any -> any any (msg:"RPIVOT SOCKS4 Pentesting Tool Detected"; dsize:6; content:"RPIVOT"; nocase; sid:1000106; rev:1;)
+
+
+# PROPRIETARY PROTOCOL HEADER-BASED RULES
+
+# Lightway UDP (ExpressVPN)
+# 2 magic bytes followed by 2 byte Lightway version. We skip Lightway version for a more robust fingerprint.
+# 2 reserved bytes at offset followed by 8 byte session identifier. 0x16 is the handshake code in DTLS and 0xfeXX indicates DTLS version
+alert udp any any -> any any (msg:"ExpressVPN Lightway Protocol Handshake"; content:"|48 65|"; offset:0; depth:2; content:"|00 00 00 00 00 00 00 00 00 00 16 fe|"; offset:6; depth:12; sid:1000055; rev:1;)
+
+
+# ANOMALY RULES
+
+# Single TLS Cipher Suite rule
+alert tls any any -> any any (msg:"TLS Connection with only 1 Cipher Suite"; ja4.hash; content:"01"; offset:4; depth:2; sid:1000057; rev:1;)
+
+# Single QUIC Cipher Suite rule
+alert quic any any -> any any (msg:"QUIC Connection Supporting only 1 Cipher Suite"; ja4.hash; content:"01"; offset:4; depth:2; sid:1000058; rev:1;)
+
+
+# VPN PROVIDER INFRASTRUCTURE AND TLS-BASED PROTOCOL RULES
+
+# VyprVPN v6.0.4
+alert tls any any -> any any (msg:"VyprVPN-related TLS SNI"; tls.sni; content:"vyprvpn"; nocase; sid:1000061; rev:1;)
+alert tls any any -> any any (msg:"VyprVPN JA4 Fingerprint Match"; ja4.hash; content:"t12d210700_76e208dd3e22_2dae41c691ec"; sid:1000059; rev:1;)
+alert dns any any -> any any (msg:"VyprVPN DNS Response"; dns.answers.rrname; content:"goldenfrog"; nocase; sid:1000060; rev:1;)
+alert dns any any -> any any (msg:"VyprVPN DNS Response"; dns.answers.rrname; content:"vyprvpn"; nocase; sid:1000080; rev:1;)
+alert tls any any -> any any (msg:"VyprVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"vyprvpn"; nocase; sid:1000086; rev:1;)
+
+# Windscribe v2.19.7
+alert tls any any -> any any (msg:"Windscribe-related TLS SNI"; tls.sni; content:"windscribe"; nocase; sid:1000062; rev:1;)
+alert tls any any -> any any (msg:"Windscribe JA4 Fingerprint Match"; ja4.hash; content:"t13d3012h1_1d37bd780c83_ad10dbbea50d"; sid:1000063; rev:1;)
+alert tls any any -> any any (msg:"Windscribe WStunnel JA4 Fingerprint Match"; ja4.hash; content:"t12i190700_2804fc2f07db_8e698f46844f"; sid:1000092; rev:1;)
+alert tls any any -> any any (msg:"Windscribe Stealth JA4 Fingerprint Match"; ja4.hash; content:"t13i1812h2_dfd890bce8d6_8f5a91a43dbb"; sid:1000093; rev:1;)
+alert dns any any -> any any (msg:"Windscribe DNS Response"; dns.answers.rrname; content:"windscribe"; nocase; sid:1000064; rev:1;)
+alert http any any -> any any (msg:"Windscribe-related HTTP Request"; flow:established,to_server; http.host; content:"whiskergalaxy"; sid:1000065; rev:1;)
+alert http any any -> any any (msg:"Windscribe User-Agent in HTTP Request"; flow:established,to_server; http.user_agent; content:"windscribe"; nocase; sid:1000066; rev:1;)
+alert tls any any -> any any (msg:"Windscribe Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"block-only-if-you-have-a-small-pee-pee"; nocase; sid:1000088; rev:1;)
+alert tls any any -> any any (msg:"Windscribe Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"deepstateplatypus"; nocase; sid:1000089; rev:1;)
+alert tls any any -> any any (msg:"Windscribe Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"whiskergalaxy"; nocase; sid:1000090; rev:1;)
+alert tls any any -> any any (msg:"Windscribe Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"windscribe"; nocase; sid:1000091; rev:1;)
+
+# ExpressVPN v12.104.0 (128)
+alert tls any any -> any any (msg:"ExpressVPN-related TLS SNI"; tls.sni; content:"expressapi"; nocase; sid:1000067; rev:1;)
+alert tls any any -> any any (msg:"ExpressVPN JA4 Fingerprint Match"; ja4.hash; content:"t12d280700_d943125447b4_e7e480e5a997"; sid:1000068; rev:1;)
+alert tls any any -> any any (msg:"ExpressVPN JA4 Fingerprint Match"; ja4.hash; content:"t12d210700_76e208dd3e22_2dae41c691ec"; sid:1000069; rev:1;)
+alert tls any any -> any any (msg:"ExpressVPN JA4 Fingerprint Match"; ja4.hash; content:"t13i100900_61a7ad8aa9b6_f9531d972513"; sid:1000070; rev:1;)
+alert tls any any -> any any (msg:"ExpressVPN Lightway (TCP) JA4 Fingerprint Match"; ja4.hash; content:"t13d010600_ee47968ec53b_7562ad41746a"; sid:1000097; rev:1;)
+alert dns any any -> any any (msg:"ExpressVPN DNS Response"; dns.answers.rrname; content:"expressapi"; nocase; sid:1000074; rev:1;)
+alert tls any any -> any any (msg:"ExpressVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"expressapi"; nocase; sid:1000087; rev:1;)
+
+# ProtonVPN v4.3.11
+alert dns any any -> any any (msg:"ProtonVPN DNS Response"; dns.answers.rrname; content:"protonvpn"; nocase; sid:1000118; rev:1;)
+alert dns any any -> any any (msg:"ProtonVPN DNS Response"; dns.answers.rrname; content:"proton.me"; nocase; sid:1000119; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN-related TLS SNI"; tls.sni; content:"proton.me"; nocase; sid:1000072; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN-related TLS SNI"; tls.sni; content:"protonvpn"; nocase; sid:1000073; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN JA4 Fingerprint Match"; ja4.hash; content:"t12d210700_76e208dd3e22_2dae41c691ec"; sid:1000071; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN Stealth JA4 Fingerprint Match"; ja4.hash; content:"t13d1516h2_8daaf6152771_02713d6af862"; sid:1000099; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"protonvpn"; nocase; sid:1000081; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"protonmail"; nocase; sid:1000082; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"pm.me"; nocase; sid:1000083; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"proton.me"; nocase; sid:1000098; rev:1;)
+alert tls any any -> any any (msg:"ProtonVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"pr.tn"; nocase; sid:1000100; rev:1;)
+
+# NordVPN v7.56.2.0
+alert tls any any -> any any (msg:"NordVPN-related TLS SNI"; tls.sni; content:"napps-1"; nocase; sid:1000075; rev:1;)
+alert tls any any -> any any (msg:"NordVPN-related TLS SNI"; tls.sni; content:"nordvpn"; nocase; sid:1000076; rev:1;)
+alert tls any any -> any any (msg:"NordVPN JA4 Fingerprint Match"; ja4.hash; content:"t12d210700_76e208dd3e22_2dae41c691ec"; sid:1000077; rev:1;)
+alert tls any any -> any any (msg:"NordVPN NordWhisper JA4 Fingerprint Match"; ja4.hash; content:"t13d040900_16476d049b0b_54ef55e172bf"; sid:1000094; rev:1;)
+alert dns any any -> any any (msg:"NordVPN DNS Response"; dns.answers.rrname; content:"napps-1"; nocase; sid:1000078; rev:1;)
+alert dns any any -> any any (msg:"NordVPN DNS Response"; dns.answers.rrname; content:"nordvpn"; nocase; sid:1000079; rev:1;)
+alert dns any any -> any any (msg:"NordVPN DNS Response"; dns.answers.rrname; content:"downloads77-"; nocase; sid:1000117; rev:1;)
+alert tls any any -> any any (msg:"NordVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"napps-1"; nocase; sid:1000084; rev:1;)
+alert tls any any -> any any (msg:"NordVPN Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"downloads77-"; nocase; sid:1000085; rev:1;)
+
+# Cloudflare WARP/MASQUE (WARP v2025.10.186.0)
+alert dns any any -> any any (msg:"Cloudflare WARP/MASQUE DNS Response"; dns.answers.rrname; content:"cloudflarecp"; nocase; sid:1000120; rev:1;)
+alert dns any any -> any any (msg:"Cloudflare WARP/MASQUE DNS Response"; dns.answers.rrname; content:"cloudflareok"; nocase; sid:1000121; rev:1;)
+alert dns any any -> any any (msg:"Cloudflare WARP/MASQUE DNS Response"; dns.answers.rrname; content:"cloudflareportal"; nocase; sid:1000122; rev:1;)
+alert dns any any -> any any (msg:"Cloudflare WARP/MASQUE DNS Response"; dns.answers.rrname; content:"cloudflareclient"; nocase; sid:1000123; rev:1;)
+alert dns any any -> any any (msg:"Cloudflare WARP/MASQUE or Regular Apple Device DNS Response"; dns.answers.rrname; content:"captive.apple.com"; nocase; sid:1000124; rev:1;)
+alert quic any any -> any any (msg:"Possible use of MASQUE Protocol ('MASQUE' in Domain Name)"; quic.sni; content:"masque"; nocase; sid:1000096; rev:1;)
+alert quic any any -> any any (msg:"Cloudflare MASQUE Protocol JA4 Fingerprint Match"; ja4.hash; content:"q13d0108h3_ee47968ec53b_224b7156ea85"; sid:1000095; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE JA4 Fingerprint Match"; ja4.hash; content: "t13d041000_51c8cbff4e3d_f9531d972513"; sid:1000129; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE JA4 Fingerprint Match"; ja4.hash; content: "t13d1011h1_61a7ad8aa9b6_3fcd1a44f3e3"; sid:1000130; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE-related TLS SNI"; tls.sni; content:"cloudflareportal"; nocase; sid:1000135; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE-related TLS SNI"; tls.sni; content:"cloudflarecp"; nocase; sid:1000132; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE-related TLS SNI"; tls.sni; content:"cloudflareok"; nocase; sid:1000133; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE-related TLS SNI"; tls.sni; content:"cloudflareclient"; nocase; sid:1000134; rev:1;)
+alert tls any any -> any any (msg:"WARP/MASQUE Server Certificate String Match"; tls.version:1.2; content:"|02|"; depth:6; content:"cloudflareclient"; nocase; sid:1000131; rev:1;)
+alert http any any -> any any (msg:"WARP/MASQUE HTTP Request"; flow:established,to_server; http.host; content:"cloudflareportal"; http.uri; content:"test"; sid:1000125; rev:1;)
+
+# Mullvad v2025.14
+alert tls any any -> any any (msg:"Mullvad JA4 Fingerprint Match"; ja4.hash; content:"t13d101000_61a7ad8aa9b6_d4929ced8316"; sid:1000127; rev:1;)
+alert tls any any -> any any (msg:"Mullvad-related TLS SNI"; tls.sni; content:"mullvad"; nocase; sid:1000128; rev:1;)
+alert quic any any -> any any (msg:"Mullvad WireGuard over QUIC JA4 Fingerprint Match"; ja4.hash; content:"q13d0411h3_16476d049b0b_50767351760d"; sid:1000136; rev:1;)
+alert quic any any -> any any (msg:"Mullvad WireGuard over QUIC JA4 Fingerprint Match"; ja4.hash; content:"q13d0412h3_16476d049b0b_8b580dbf677e"; sid:1000137; rev:1;)
+alert quic any any -> any any (msg:"Mullvad-related QUIC SNI"; quic.sni; content:"blockerad"; nocase; sid:1000138; rev:1;)
