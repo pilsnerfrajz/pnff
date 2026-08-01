@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 
 param (
-    [string]$Interface,
+    [string]$NetworkInterface,
     [string]$OutputFile
 )
 
