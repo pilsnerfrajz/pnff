@@ -17,7 +17,7 @@ We have implemented detections for the following OPC UA implementations/librarie
 ![ua-fp-format.png](ua-fp-format.png)
 
 ## UA-FP to Suricata
-A script for converting UA-FP fingerprints to Suricata rules is found `scripts/opcua-to-suricata`. Run the script for usage instructions.
+A script for converting UA-FP fingerprints to Suricata rules is found [scripts/opcua-to-suricata/](scripts/opcua-to-suricata/). Run the script for usage instructions.
 
 ## Rules
 We converted the UA-FP fingerprints into continous byte blocks in little-endian format, and validated the rules against our recorded traffic. There is no native OPC UA protocol keyword in Suricata, so we use the `content` keyword to match the `HEL`/`ACK` message fields in TCP packets.
