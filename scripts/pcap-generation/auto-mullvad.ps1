@@ -1,7 +1,6 @@
 #Requires -RunAsAdministrator
 
 param (
-    [string]$MullvadAccount,
     [string]$Interface,
     [string]$OutputFile
 )
@@ -15,7 +14,6 @@ function Invoke-LocalMullvadCapture {
 
     Start-Service -Name "MullvadVPN" -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-
     mullvad relay set location se > $null
     mullvad anti-censorship set mode $Mode > $null
 
@@ -23,8 +21,8 @@ function Invoke-LocalMullvadCapture {
         $Mode = "vanilla"
     }
 
-    for ($i = 1; $i -le 50; $i++) {
-        Start-Sleep -Seconds 3 
+    for ($i = 1; $i -le 473; $i++) {
+        Start-Sleep -Seconds 3
 
         $CurrentFile = "${OutputFile}_${Mode}_${i}.pcap"
         echo "Starting capture iteration $i. Output file: $CurrentFile"
@@ -35,7 +33,6 @@ function Invoke-LocalMullvadCapture {
 
         Start-Service -Name "MullvadVPN" -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
-
         mullvad connect -w > $null
 
         echo "Mullvad status: $(mullvad status)"
@@ -51,20 +48,16 @@ function Invoke-LocalMullvadCapture {
         curl.exe -s "https://svtplay.se" > $null
         curl.exe -s "https://svtplay.se/program" > $null
         curl.exe -s "https://svtplay.se/program/historia" > $null
-        
+
         # Stop the local capture process
         $captureProcess | Stop-Process -Force
 
         mullvad disconnect -w > $null
         mullvad status
-
-        Stop-Service -Name "MullvadVPN" -Force        
+        Stop-Service -Name "MullvadVPN" -Force
     }
 }
 
-# Vanilla
 Invoke-LocalMullvadCapture -Mode "off"
-
 Invoke-LocalMullvadCapture -Mode "lwo"
-
 Invoke-LocalMullvadCapture -Mode "shadowsocks"
