@@ -1,5 +1,5 @@
 # OPC UA Rules
-We have implemented detections for the following OPC UA implementations/libraries. The rules target the handshakes (HEL/ACK messages) that are sent when the client and server establishes a connection. The rules do not implement JA4X detections of default vendor certificates as Suricata does not currently support JA4X out of the box. 
+We have implemented detections for the following OPC UA implementations/libraries. The rules target the handshakes (`HEL`/`ACK` messages) that are sent when the client and server establishes a connection. The rules do not implement JA4X detections of default vendor certificates as Suricata does not currently support JA4X out of the box. 
 - opcua-asyncio v1.2b2 (OPC UA Server/Client)
 - python-opcua 0.98.13 (OPC UA Server)
 - Prosys OPC UA Browser 2026.1.0-33 (OPC UA Client)
@@ -20,7 +20,7 @@ We have implemented detections for the following OPC UA implementations/librarie
 A script for converting UA-FP fingerprints to Suricata rules is found `scripts/opcua-to-suricata`. Run the script for usage instructions.
 
 ## Rules
-We converted the UA-FP fingerprints into continous byte blocks in little-endian format, and validated the rules against our recorded traffic. 
+We converted the UA-FP fingerprints into continous byte blocks in little-endian format, and validated the rules against our recorded traffic. There is no native OPC UA protocol keyword in Suricata, so we use the `content` keyword to match the `HEL`/`ACK` message fields in TCP packets.
 
 Because `python-opcua` is the predecessor to `opcua-asyncio`, they have the same fingerprint, and we combine them into a single rule. Some implementations have multiple fingerprints (e.g., Kepware), and they are implemented as separate rules.
 
