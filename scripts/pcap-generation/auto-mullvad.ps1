@@ -28,7 +28,7 @@ function Invoke-LocalMullvadCapture {
         echo "Starting capture iteration $i. Output file: $CurrentFile"
 
         # Start tshark in the background and save the process to a variable
-        $tsharkArgs = "-i $Interface -w $CurrentFile"
+        $tsharkArgs = "-i $NetworkInterface -w $CurrentFile"
         $captureProcess = Start-Process -FilePath "C:\Program Files\Wireshark\tshark.exe" -ArgumentList $tsharkArgs -PassThru -WindowStyle Hidden
 
         Start-Service -Name "MullvadVPN" -ErrorAction SilentlyContinue
