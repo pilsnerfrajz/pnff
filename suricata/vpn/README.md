@@ -27,6 +27,10 @@ Our VPN rules contain both VPN software application and VPN protocol fingerprint
 - OpenVPN (UDP/TCP) 
 - IPsec (Based on IKE exchange)
 - SOCKS5
+
+---
+
+**TLS/QUIC-Based**
 - Lightway UDP (ExpressVPN)
 - Lightway TCP (ExpressVPN)
 - Wstunnel (Windscribe)
@@ -35,8 +39,8 @@ Our VPN rules contain both VPN software application and VPN protocol fingerprint
 - NordWhisper (NordVPN)
 - Cloudflare MASQUE Protocol (WARP)
 
-## Application/Program Fingerprints and TLS-Based Protocols
-These fingerprints target standard protocols such as DNS, HTTP and TLS handshakes. These are already described in [suricata/rmm/README.md](suricata/rmm/README.md) and are not repeated here. Application-specific rules are grouped together with their respective TLS-based protocols (e.g., Wstunnel) in the rule file. TLS-based rules are identified via TLS Client Hello fingerprints.
+## Application/Program Fingerprints and TLS/QUIC-Based Protocols
+These fingerprints target standard protocols such as DNS, HTTP and TLS handshakes. These are already described in [suricata/rmm/README.md](suricata/rmm/README.md) and are not repeated here. Application-specific rules are grouped together with their respective TLS-based protocols (e.g., Wstunnel) in the rule file. TLS/QUIC-based rules are identified via TLS Client Hello fingerprints.
 
 ## WireGuard
 Here we explain WireGuard and obfuscation modes. All rules use the `flowbits` keyword to track the flow of the communication to generate an alert once a complete handshake is seen. 
@@ -51,6 +55,9 @@ Lightweight WireGuard Obfuscation (LWO) is a proprietary obfuscation method used
 WireGuard over Shadowsocks is similar to LWO, and contains no fixed bytes. The Mullvad implementation of Shadowsocks is the 2017 version which adds predictable overhead. Our testing showed a 55 byte overhead which we use for the `dsize` keyword. The second check is that the entropy is within the established interval. The entropy check is necessary because the Shadowsocks implementation does not have any fixed bytes to match on.
 
 We also made an effort to detect Shadowsocks 2022, but due to no available traffic, it is untested.
+
+### WireGuard over QUIC
+This obfuscation layer transforms it into a QUIC-based protocol and is fingerprinted with JA4. 
 
 ## OpenVPN
 OpenVPN in TCP and UDP modes follow the same pattern as WireGuard with a two byte difference. OpenVPN is detectable by looking at the minimum and maximum size of the initiation and response packets. The calculation for the overhead is placed in the rule file, and the rules only match when the packet is within the interval. It then extracts the five most significant bits of the first byte of the OpenVPN header with the `byte_test` keyword. If these bits match `0x07`, it is a client initiation message. If it is `0x08`, it comes from the server and completes the handshake. We use the `flow` keyword to reduce false positives, for example to not match if `0x08` is sent from the client. `flowbits` are also used to keep track of the communication flow and only alert on a complete handshake. 
