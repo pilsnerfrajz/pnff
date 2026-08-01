@@ -14,7 +14,7 @@ Most of the rules should be self-documenting, but here is a quick rundown the ru
 ## DNS/mDNS/Custom Broadcast
 Our DNS rules inspect responses rather than queries. We opted for replies as they are more difficult for an adversary to alter assuming they do not control the upstream DNS infrastructure, just in case there are ways to obfuscate DNS queries. Possible improvements could be adding rules for the queries as well.
 
-For mDNS, the queries are abalyzed as any responses are sent to the multicast IP address. Assuming an adversary wanting to find other hosts on the network, or connect from the outside, the most interesting entity is the requester.
+For mDNS, the queries are analyzed as any responses are sent to the multicast IP address and does not reveal the source. Assuming an adversary wants to find other hosts on the network, or connect from the outside, the most interesting entity is the requester.
 
 Some software like AnyDesk sends proprietary mutlicast messages to discover other devices with the tool installed. The very specific address and port are good indicators of AnyDesk presence. 
 ```
@@ -29,7 +29,7 @@ alert udp any any -> 239.255.102.18 50003 (msg:"AnyDesk Network Discovery Traffi
 The rules detect specific HTTP requests by verifying that the connection originates from the RMM client to the vendor infrastructure and that the session is established.
 
 - **Ammy Admin:** The rules trigger when the requested hostname contains `ammyy`.
-- **AnyDesk:** The rules detect a `POST` request containing a specific `User-Agent` string identifying `anydesk.
+- **AnyDesk:** The rules detect a `POST` request containing a specific `User-Agent` string identifying `anydesk`.
 
 ## TLS and QUIC
 The rules detect various TLS attributes that are indicative of an RMM tool in the network. They match on identifying elements when the tools connect to the developer servers for authentication, relay and updates:
@@ -44,7 +44,7 @@ The rules detect various TLS attributes that are indicative of an RMM tool in th
 Similarly, QUIC handshakes are parsed to isolate the inner TLS packets and extract the corresponding JA4 hash.
 
 ## Port Rules
-The purely port-based rules are generic and likely to produce a high volume of false positives. They are mostly there as a possible network artifact but require testing in a live environment. Perhaps they are better suited from a forensic POV or combined with other indicators. A highly specific example was observed in our testing as SYN packets sent by AnyDesk to port 7070, which is tracked under `sid:1000041`.
+The purely port-based rules are generic and likely to produce a high volume of false positives. They are mostly there as a possible network artifact but require testing in a live environment. Perhaps they are better suited from a forensic POV or combined with other indicators. A highly specific example was observed in our testing as SYN packets were sent by AnyDesk to port 7070, which is tracked under `sid:1000041`.
 
 ## Magic Bytes
 Virtual Network Computing (VNC) does not utilize TLS. Instead, it relies on the Remote Frame Buffer (RFB) protocol. During session negotiation, the client sends its supported RFB version to the server in plaintext (e.g., `RFB 003.008`). This string is highly distinct and reliably fingerprinted by Suricata.
