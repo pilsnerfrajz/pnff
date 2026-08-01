@@ -3,7 +3,7 @@ Our VPN rules contain both VPN software application and VPN protocol fingerprint
 
 ---
 
-**Apps/programs:**
+**Apps/programs**
 - ExpressVPN v12.104.0 (128) (VPN)
 - Mullvad v2025.14 (VPN)
 - NordVPN v7.56.2.0 (VPN)
@@ -16,7 +16,7 @@ Our VPN rules contain both VPN software application and VPN protocol fingerprint
 
 ---
 
-**Protocols:**
+**Protocols**
 - WireGuard
   - Vanilla
   - TCP mode
